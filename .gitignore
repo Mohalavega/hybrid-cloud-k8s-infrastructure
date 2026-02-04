@@ -1,0 +1,22 @@
+# Terraform files
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+*.tfvars
+
+# SSH keys 
+*.pem
+ssh-key
+ssh-key.pub
+id_rsa
+id_rsa.pub
+id_rsa_cyber*
+
+# IDE files 
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
