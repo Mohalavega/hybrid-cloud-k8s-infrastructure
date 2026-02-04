@@ -10,7 +10,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_key_pair" "admin_key" {
   key_name = "key-cyber-linux"
-  public_key = file("../id_rsa_cyber.pub")
+  public_key = file("../ssh-key.pub")
 }
 
 resource "aws_instance" "K3s_master" {
