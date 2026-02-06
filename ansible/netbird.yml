@@ -1,0 +1,59 @@
+---
+- name: Préparation du serveur AWS et Connexion NetBird
+  hosts: master_aws
+  become: yes
+  vars:
+    netbird_setup_key: "D1323017-24B8-4463-9DB5-5CF03C936D77"
+    netbird_management_url: "https://netbirdmoha.online"
+
+  tasks:
+    # --- SECTION : PRÉPARATION SYSTÈME (Basée sur ton image) ---
+    - name: Mise à jour du cache apt
+      apt:
+        update_cache: yes
+        force_apt_get: yes
+
+    - name: Installation des outils de base
+      apt:
+        name:
+          - curl
+          - gnupg
+          - software-properties-common
+        state: present
+
+    - name: Suppression de needrestart (Évite les blocages interactifs)
+      apt:
+        name: needrestart
+        state: absent
+        purge: yes
+
+    # --- SECTION : NETBIRD (Automatisée) ---
+    - name: Nettoyage des anciennes tentatives NetBird
+      apt:
+        name: netbird
+        state: absent
+        purge: yes
+
+    - name: Suppression du dossier de configuration
+      file:
+        path: /etc/netbird
+        state: absent
+
+    - name: Installation de l'agent NetBird via script officiel
+      shell: curl -fsSL https://pkgs.netbird.io/install.sh | sh
+
+    - name: Connexion au réseau privé NetBird
+      command: >
+        netbird up 
+        --management-url {{ netbird_management_url }} 
+        --setup-key {{ netbird_setup_key }}
+      register: netbird_output
+
+    - name: Vérification du statut de connexion
+      command: netbird status
+      register: netbird_status
+      changed_when: false
+
+    - name: Affichage du statut final
+      debug:
+        var: netbird_status.stdout_lines
