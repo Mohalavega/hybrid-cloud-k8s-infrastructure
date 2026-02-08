@@ -20,3 +20,11 @@ id_rsa_cyber*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Azure specific
+terraform-azure/azure-key
+terraform-azure/azure-key.pub
+terraform-azure/.terraform/
+terraform-azure/*.tfstate*
+terraform-azure/*.lock.hcl
+terraform-azure/*.tfvars
