@@ -4,7 +4,7 @@ resource "azurerm_resource_group" "rg" {
 }
 
 resource "azurerm_virtual_network" "vnet" {
-    name= "vnet-azure"
+    name= "vnet-azure-k3s"
     address_space = ["10.1.0.0/16"]
     location = var.location
     resource_group_name = azurerm_resource_group.rg.name
@@ -18,7 +18,7 @@ resource "azurerm_subnet" "subnet" {
 }
 
 resource "azurerm_public_ip" "pip" {
-    name = "worker-public-ip"
+    name = "worker-public-ip-k3s"
     location = var.location
     resource_group_name = azurerm_resource_group.rg.name
     allocation_method = "Static"
@@ -33,6 +33,6 @@ resource "azurerm_network_interface" "nic"{
       name="internal"
       subnet_id = azurerm_subnet.subnet.id
       private_ip_address_allocation = "Dynamic"
-      public_ip_address_id = azurerm_public_ip.pip.id
+      public_ip_address_id = azurerm_public_ip.pip.id 
     }
 }

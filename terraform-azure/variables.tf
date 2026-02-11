@@ -18,5 +18,5 @@ variable "rg_nom" {
 variable "vm_size" {
   description = "Type de VM"
   type = string 
-  default = "Standard_B1s"
+  default = "Standard_B2ats_v2"
 }

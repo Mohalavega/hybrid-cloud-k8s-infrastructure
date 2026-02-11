@@ -1,5 +1,5 @@
 resource "azurerm_network_security_group" "nsg" {
-    name = "worker-nsg"
+    name = "worker-nsg-k3s"
     location = var.location
     resource_group_name = azurerm_resource_group.rg.name
   
