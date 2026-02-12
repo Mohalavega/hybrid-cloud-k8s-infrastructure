@@ -2,12 +2,20 @@
 - name: Installation du Master K3s sur AWS
   hosts: master_aws
   become: yes
-  vars:
-    # Ton IP NetBird récupérée sur l'image
-    netbird_ip: "100.124.187.132"
+  gather_facts: yes  # Indispensable pour détecter les interfaces réseau
 
   tasks:
-    - name: Installer K3s Master (Configuré pour NetBird)
+    - name: Récupérer l'IP de l'interface NetBird (wt0)
+      set_fact:
+        netbird_ip: "{{ ansible_wt0.ipv4.address }}"
+      when: ansible_wt0 is defined
+
+    - name: Vérifier que l'IP a bien été trouvée
+      fail:
+        msg: "Impossible de trouver l'interface wt0. Vérifie que NetBird est connecté."
+      when: netbird_ip is not defined
+
+    - name: Installer K3s Master
       shell: |
         curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
         --node-ip={{ netbird_ip }} \
@@ -15,18 +23,3 @@
         --bind-address={{ netbird_ip }} \
         --flannel-iface=wt0 \
         --node-external-ip={{ netbird_ip }}" sh -
-      register: k3s_install
-
-    - name: Attendre que le Token soit généré
-      wait_for:
-        path: /var/lib/rancher/k3s/server/node-token
-
-    - name: Lire le Token pour le futur worker Azure
-      command: cat /var/lib/rancher/k3s/server/node-token
-      register: k3s_token
-
-    - name: Afficher les informations de connexion
-      debug:
-        msg: 
-          - "URL DU MASTER : https://{{ netbird_ip }}:6443"
-          - "TOKEN SECRET : {{ k3s_token.stdout }}"

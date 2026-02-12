@@ -23,6 +23,12 @@ resource "aws_instance" "K3s_master" {
 
   key_name = aws_key_pair.admin_key.key_name
 
+
+  lifecycle {
+    ignore_changes = [ami] # Empêche le remplacement forcé si l'AMI change 
+  }
+
+
   user_data = <<-EOF
               #!/bin/bash
               apt-get update -y

@@ -9,5 +9,5 @@ variable "region" {
 variable "instance_type" {
   description = "Taille de l'instance EC2"
   type = string
-  default = "t2.micro"
+  default = "t3.small"
 }

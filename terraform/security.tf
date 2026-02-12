@@ -28,3 +28,12 @@ resource "aws_vpc_security_group_egress_rule" "allow_all" {
     ip_protocol = "-1"
     description = "Allow ALL"
 }
+
+resource "aws_vpc_security_group_ingress_rule" "allow_k3s_api" {
+    security_group_id = aws_security_group.allow_ssh_netbird.id
+    cidr_ipv4         = "0.0.0.0/0" 
+    from_port         = 6443
+    to_port           = 6443
+    ip_protocol       = "tcp"
+    description       = "K3s API Server"
+}

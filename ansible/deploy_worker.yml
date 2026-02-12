@@ -1,0 +1,99 @@
+---
+# ==========================================================
+# PHASE 1 : COLLECTE DES SECRETS SUR LE MASTER AWS
+# ==========================================================
+- name: Phase 1 - Collecte des secrets sur AWS
+  hosts: master_aws
+  become: yes
+  gather_facts: yes # Nécessaire pour détecter l'IP wt0
+
+  tasks:
+    - name: Lire le token K3s sur le Master
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_base64
+      # On récupère le token de sécurité actuel du Master
+
+    - name: Sauvegarder les secrets en tant que facts
+      set_fact:
+        master_token: "{{ k3s_token_base64['content'] | b64decode | trim }}"
+        master_vpn_ip: "{{ ansible_wt0.ipv4.address }}"
+      # On stocke l'IP du VPN pour que le worker sache où se connecter
+
+# ==========================================================
+# PHASE 2 : INSTALLATION ET JONCTION DU WORKER AZURE
+# ==========================================================
+- name: Phase 2 - Installation sécurisée sur Azure
+  hosts: worker
+  become: yes
+  gather_facts: yes
+  vars:
+    # Récupération automatique des variables de la Phase 1
+    token: "{{ hostvars[groups['master_aws'][0]]['master_token'] }}"
+    m_ip: "{{ hostvars[groups['master_aws'][0]]['master_vpn_ip'] }}"
+    
+    # Tes identifiants NetBird
+    netbird_key: "A06C580A-E082-4256-BA66-38496CAD8BA1"
+    netbird_url: "https://netbirdmoha.online"
+
+  tasks:
+    # --- SECTION : PRÉPARATION RÉSEAU & NETBIRD ---
+    - name: Installer l'agent NetBird
+      shell: curl -fsSL https://pkgs.netbird.io/install.sh | sh
+      args:
+        creates: /usr/bin/netbird
+
+    - name: Rafraîchir la connexion NetBird (Correctif Required Key)
+      shell: |
+        netbird down
+        ip link delete wt0 || true
+        netbird up --management-url {{ netbird_url }} --setup-key {{ netbird_key }}
+      async: 60
+      poll: 0
+      # On force la réinitialisation pour éviter les erreurs de clés du noyau
+
+    - name: Attendre le rétablissement de la session SSH
+      wait_for_connection:
+        delay: 5
+        timeout: 60
+
+    - name: Attendre que le tunnel soit opérationnel
+      command: netbird status
+      register: nb_status
+      until: "'Management: Connected' in nb_status.stdout"
+      retries: 15
+      delay: 5
+      changed_when: false
+      # On s'assure que le VPN est "Connected" avant de continuer
+
+    - name: Ajuster le MTU pour la stabilité (AWS <-> Azure)
+      command: ip link set dev wt0 mtu 1280
+      ignore_errors: yes
+      # Évite que les installations K3s ne figent
+
+    # --- SECTION : VÉRIFICATION ET INSTALLATION K3S ---
+    - name: Tester la connectivité TCP vers le Master (Port 6443)
+      wait_for:
+        host: "{{ m_ip }}"
+        port: 6443
+        timeout: 45
+        msg: "Le Master ({{ m_ip }}) ne répond pas. Vérifie le Security Group AWS (port 6443)."
+      # Évite de bloquer indéfiniment sur la tâche suivante si le port est fermé
+
+    - name: Nettoyage d'une ancienne installation K3s Agent
+      command: /usr/local/bin/k3s-agent-uninstall.sh
+      ignore_errors: yes
+
+    - name: Installer K3s Agent et lier au Master via wt0
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_URL="https://{{ m_ip }}:6443" \
+        K3S_TOKEN="{{ token }}" \
+        sh -s - agent --flannel-iface=wt0
+      register: k3s_agent_install
+      # Jonction finale du worker au cluster hybride
+
+    - name: Vérification finale du service
+      systemd:
+        name: k3s-agent
+        state: started
+        enabled: yes

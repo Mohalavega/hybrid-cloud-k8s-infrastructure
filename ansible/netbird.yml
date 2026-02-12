@@ -3,11 +3,12 @@
   hosts: master_aws
   become: yes
   vars:
-    netbird_setup_key: "D1323017-24B8-4463-9DB5-5CF03C936D77"
+    # On garde ta clé et ton URL actuelle
+    netbird_setup_key: "A06C580A-E082-4256-BA66-38496CAD8BA1"
     netbird_management_url: "https://netbirdmoha.online"
 
   tasks:
-    # --- SECTION : PRÉPARATION SYSTÈME (Basée sur ton image) ---
+    # --- SECTION 1 : PRÉPARATION SYSTÈME ---
     - name: Mise à jour du cache apt
       apt:
         update_cache: yes
@@ -27,8 +28,8 @@
         state: absent
         purge: yes
 
-    # --- SECTION : NETBIRD (Automatisée) ---
-    - name: Nettoyage des anciennes tentatives NetBird
+    # --- SECTION 2 : NETTOYAGE KERNEL & AGENT ---
+    - name: Nettoyage des anciennes tentatives NetBird (Apt)
       apt:
         name: netbird
         state: absent
@@ -39,17 +40,36 @@
         path: /etc/netbird
         state: absent
 
+    - name: Nettoyage forcé de l'interface kernel (Crucial pour l'erreur Required Key)
+      shell: ip link delete wt0 || true
+      ignore_errors: yes
+
+    # --- SECTION 3 : INSTALLATION & CONNEXION ---
     - name: Installation de l'agent NetBird via script officiel
       shell: curl -fsSL https://pkgs.netbird.io/install.sh | sh
 
-    - name: Connexion au réseau privé NetBird
+    - name: Connexion au réseau privé NetBird (Async pour SSH)
       command: >
         netbird up 
         --management-url {{ netbird_management_url }} 
         --setup-key {{ netbird_setup_key }}
-      register: netbird_output
+      async: 60
+      poll: 0
 
-    - name: Vérification du statut de connexion
+    - name: Attente du Handshake NetBird (Vérification de la connexion)
+      command: netbird status
+      register: nb_status
+      until: "'Management: Connected' in nb_status.stdout"
+      retries: 15
+      delay: 5
+      changed_when: false
+
+    - name: Fixer le MTU pour la stabilité Cloud-to-Cloud (Évite les freeze apt)
+      command: ip link set dev wt0 mtu 1280
+      ignore_errors: yes
+
+    # --- SECTION 4 : STATUT FINAL ---
+    - name: Vérification du statut final de connexion
       command: netbird status
       register: netbird_status
       changed_when: false
